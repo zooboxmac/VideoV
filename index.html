@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Monitor Ristorante - Loop Automatico</title>
+    <style>
+        /* Rimuove ogni bordo, barra di scorrimento e imposta lo sfondo nero */
+        body, html { 
+            margin: 0; 
+            padding: 0; 
+            width: 100%; 
+            height: 100%; 
+            overflow: hidden; 
+            background-color: black; 
+        }
+        /* Il video copre tutto lo schermo senza deformarsi */
+        video { 
+            width: 100vw; 
+            height: 100vh; 
+            object-fit: cover; 
+        }
+    </style>
+</head>
+<body>
+
+<video id="videoPlayer" autoplay muted></video>
+
+<script>
+    // --- CONFIGURAZIONE ---
+    // ID inserito correttamente dal tuo link
+    const FOLDER_ID = '1LRIfwjECBIzAceNz24khwVQAGa6TKm8A'; 
+    // ----------------------
+
+    const videoPlayer = document.getElementById('videoPlayer');
+    let videoList = [];
+    let currentIndex = 0;
+
+    async function fetchVideos() {
+        try {
+            // Utilizziamo un proxy per leggere la cartella pubblica di Drive
+            const response = await fetch(`https://api.allorigins.win/get?url=${encodeURIComponent('https://drive.google.com/embeddedfolderview?id=' + FOLDER_ID)}`);
+            const data = await response.json();
+            const html = data.contents;
+            
+            // Cerchiamo gli ID dei file video mp4/mov nella pagina
+            const links = html.match(/id=([a-zA-Z0-9_-]{25,})/g);
+            
+            if (links) {
+                // Puliamo i duplicati e aggiorniamo la lista
+                videoList = [...new Set(links.map(l => l.replace('id=', '')))];
+                console.log("Video trovati:", videoList.length);
+                if (videoList.length > 0 && videoPlayer.src === "") {
+                    playVideo(0);
+                }
+            } else {
+                console.error("Nessun video trovato. Verifica che la cartella sia 'Pubblica - Chiunque abbia il link'.");
+            }
+        } catch (error) {
+            console.error("Errore di connessione:", error);
+        }
+    }
+
+    function playVideo(index) {
+        if (index >= videoList.length) index = 0;
+        currentIndex = index;
+        
+        // Link diretto per lo streaming da Google Drive
+        const videoSrc = `https://drive.google.com/uc?export=download&id=${videoList[currentIndex]}`;
+        
+        videoPlayer.src = videoSrc;
+        videoPlayer.load();
+        
+        videoPlayer.play().catch(e => {
+            // Alcuni browser richiedono un'interazione, ma col "muted" l'autoplay di solito va
+            console.log("In attesa di riproduzione...");
+            setTimeout(() => videoPlayer.play(), 2000);
+        });
+    }
+
+    // Passa al video successivo quando finisce quello attuale
+    videoPlayer.onended = () => {
+        playVideo(currentIndex + 1);
+    };
+
+    // Avvio iniziale
+    fetchVideos();
+
+    // Controlla nuovi video ogni 30 minuti senza ricaricare la pagina
+    setInterval(fetchVideos, 1800000);
+</script>
+</body>
+</html>
