@@ -5,7 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Monitor Ristorante Live</title>
     <style>
-        /* Setup Schermo Intero */
         body, html { 
             margin: 0; 
             padding: 0; 
@@ -14,7 +13,6 @@
             overflow: hidden; 
             background-color: black; 
         }
-        /* Il video copre tutto lo schermo senza deformarsi */
         video { 
             width: 100vw; 
             height: 100vh; 
@@ -28,14 +26,14 @@
     <video id="videoPlayer" autoplay muted playsinline></video>
 
 <script>
-    // --- IL TUO LINK AGGIORNATO ---
+    // --- CONFIGURAZIONE ---
     const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyPx6xy7SFY3ubBLLRwp6Lfa3LCnMaTsDzHcxZjaj-qBCiKYkWsn5bMo2Us6swPTkajSg/exec';
     
     const videoPlayer = document.getElementById('videoPlayer');
     let videoList = [];
     let currentIndex = 0;
 
-    // Funzione per caricare la lista dei video dallo Script
+    // Funzione per recuperare la lista dei video
     async function loadPlaylist() {
         try {
             const response = await fetch(SCRIPT_URL);
@@ -43,8 +41,8 @@
             
             if (data && data.length > 0) {
                 videoList = data;
-                // Se è la prima volta che carica o il player è vuoto, avvia il primo video
-                if (!videoPlayer.src) {
+                // Se è il primo avvio, facciamo partire il primo video
+                if (!videoPlayer.src || videoPlayer.src === "") {
                     playVideo(0);
                 }
             }
@@ -53,44 +51,49 @@
         }
     }
 
-    // Funzione per riprodurre un video specifico
+    // Funzione per riprodurre il video
     function playVideo(index) {
         if (videoList.length === 0) return;
         
-        // Se arriviamo alla fine della lista, ricomincia da capo
         if (index >= videoList.length) index = 0;
         currentIndex = index;
         
-        // Link diretto per il download/streaming da Drive
         const videoId = videoList[currentIndex];
-        videoPlayer.src = `https://drive.google.com/uc?export=download&id=${videoId}`;
         
-        // Forza il caricamento e l'avvio
+        // Link ottimizzato per bypassare alcuni blocchi dei browser Smart TV
+        // Il #.mp4 finale "inganna" il browser facendogli capire che è un file video puro
+        videoPlayer.src = `https://drive.google.com/uc?export=download&id=${videoId}&v=${Date.now()}#.mp4`;
+        
         videoPlayer.load();
-        videoPlayer.play().catch(error => {
-            console.log("Autoplay bloccato o errore: ", error);
-        });
+        
+        // Tenta la riproduzione
+        const playPromise = videoPlayer.play();
+        
+        if (playPromise !== undefined) {
+            playPromise.catch(error => {
+                console.log("Riproduzione automatica bloccata. Riprovo...");
+                // Alcuni browser richiedono un tentativo extra dopo un errore
+                setTimeout(() => videoPlayer.play(), 1000);
+            });
+        }
     }
 
-    // Quando un video finisce, passa automaticamente al prossimo
+    // Passaggio automatico al video successivo
     videoPlayer.onended = () => {
         playVideo(currentIndex + 1);
     };
 
-    // --- AVVIO E AUTOMAZIONE ---
+    // Gestione errori di caricamento (es. file troppo grande o rete instabile)
+    videoPlayer.onerror = () => {
+        console.error("Errore caricamento video, salto al prossimo tra 3 secondi...");
+        setTimeout(() => playVideo(currentIndex + 1), 3000);
+    };
 
-    // Carica la playlist all'apertura
+    // --- AVVIO ---
     loadPlaylist();
 
-    // Ogni 5 minuti controlla se il cameriere ha aggiunto o rimosso video
-    // (Non interrompe il video corrente, aggiorna solo la lista per il prossimo ciclo)
+    // Ricontrolla la cartella Drive ogni 5 minuti per vedere se ci sono nuovi video
     setInterval(loadPlaylist, 300000);
-
-    // Gestione errori: se il video si blocca per problemi di rete, riprova dopo 5 secondi
-    videoPlayer.onerror = () => {
-        console.log("Errore nel video corrente, salto al prossimo...");
-        setTimeout(() => playVideo(currentIndex + 1), 5000);
-    };
 
 </script>
 </body>
