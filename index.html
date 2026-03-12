@@ -3,98 +3,75 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Monitor Ristorante Live</title>
+    <title>Monitor Ristorante Pro</title>
     <style>
-        body, html { 
-            margin: 0; 
-            padding: 0; 
-            width: 100%; 
-            height: 100%; 
-            overflow: hidden; 
-            background-color: black; 
-        }
-        video { 
-            width: 100vw; 
-            height: 100vh; 
-            object-fit: cover; 
-            display: block;
+        body, html { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background-color: black; }
+        video { width: 100vw; height: 100vh; object-fit: cover; display: block; }
+        /* Messaggio invisibile che appare solo se l'autoplay fallisce */
+        #overlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            display: none; justify-content: center; align-items: center;
+            color: white; font-family: sans-serif; background: rgba(0,0,0,0.8);
+            z-index: 10; cursor: pointer;
         }
     </style>
 </head>
 <body>
 
+    <div id="overlay" onclick="startExecution()">Clicca ovunque per avviare il monitor</div>
+    
     <video id="videoPlayer" autoplay muted playsinline></video>
 
 <script>
-    // --- CONFIGURAZIONE ---
     const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyPx6xy7SFY3ubBLLRwp6Lfa3LCnMaTsDzHcxZjaj-qBCiKYkWsn5bMo2Us6swPTkajSg/exec';
-    
     const videoPlayer = document.getElementById('videoPlayer');
+    const overlay = document.getElementById('overlay');
     let videoList = [];
     let currentIndex = 0;
 
-    // Funzione per recuperare la lista dei video
     async function loadPlaylist() {
         try {
             const response = await fetch(SCRIPT_URL);
             const data = await response.json();
-            
             if (data && data.length > 0) {
                 videoList = data;
-                // Se è il primo avvio, facciamo partire il primo video
                 if (!videoPlayer.src || videoPlayer.src === "") {
                     playVideo(0);
                 }
             }
-        } catch (e) {
-            console.error("Errore nel recupero della playlist:", e);
-        }
+        } catch (e) { console.error("Errore playlist", e); }
     }
 
-    // Funzione per riprodurre il video
     function playVideo(index) {
         if (videoList.length === 0) return;
-        
         if (index >= videoList.length) index = 0;
         currentIndex = index;
         
         const videoId = videoList[currentIndex];
-        
-        // Link ottimizzato per bypassare alcuni blocchi dei browser Smart TV
-        // Il #.mp4 finale "inganna" il browser facendogli capire che è un file video puro
+        // Forziamo il caricamento pulito
         videoPlayer.src = `https://drive.google.com/uc?export=download&id=${videoId}&v=${Date.now()}#.mp4`;
-        
         videoPlayer.load();
         
-        // Tenta la riproduzione
-        const playPromise = videoPlayer.play();
-        
-        if (playPromise !== undefined) {
-            playPromise.catch(error => {
-                console.log("Riproduzione automatica bloccata. Riprovo...");
-                // Alcuni browser richiedono un tentativo extra dopo un errore
-                setTimeout(() => videoPlayer.play(), 1000);
-            });
-        }
+        videoPlayer.play().catch(error => {
+            console.log("Autoplay bloccato. Mostro overlay di attivazione.");
+            overlay.style.display = 'flex';
+        });
     }
 
-    // Passaggio automatico al video successivo
-    videoPlayer.onended = () => {
-        playVideo(currentIndex + 1);
-    };
+    function startExecution() {
+        overlay.style.display = 'none';
+        videoPlayer.play();
+    }
 
-    // Gestione errori di caricamento (es. file troppo grande o rete instabile)
+    videoPlayer.onended = () => playVideo(currentIndex + 1);
+    
     videoPlayer.onerror = () => {
-        console.error("Errore caricamento video, salto al prossimo tra 3 secondi...");
         setTimeout(() => playVideo(currentIndex + 1), 3000);
     };
 
-    // --- AVVIO ---
+    // Avvio
     loadPlaylist();
-
-    // Ricontrolla la cartella Drive ogni 5 minuti per vedere se ci sono nuovi video
     setInterval(loadPlaylist, 300000);
-
 </script>
 </body>
 </html>
