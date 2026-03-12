@@ -3,9 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Monitor Ristorante - Loop Automatico</title>
+    <title>Monitor Ristorante Live</title>
     <style>
-        /* Rimuove ogni bordo, barra di scorrimento e imposta lo sfondo nero */
+        /* Setup Schermo Intero */
         body, html { 
             margin: 0; 
             padding: 0; 
@@ -19,75 +19,79 @@
             width: 100vw; 
             height: 100vh; 
             object-fit: cover; 
+            display: block;
         }
     </style>
 </head>
 <body>
 
-<video id="videoPlayer" autoplay muted></video>
+    <video id="videoPlayer" autoplay muted playsinline></video>
 
 <script>
-    // --- CONFIGURAZIONE ---
-    // ID inserito correttamente dal tuo link
-    const FOLDER_ID = '1LRIfwjECBIzAceNz24khwVQAGa6TKm8A'; 
-    // ----------------------
-
+    // --- IL TUO LINK AGGIORNATO ---
+    const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyPx6xy7SFY3ubBLLRwp6Lfa3LCnMaTsDzHcxZjaj-qBCiKYkWsn5bMo2Us6swPTkajSg/exec';
+    
     const videoPlayer = document.getElementById('videoPlayer');
     let videoList = [];
     let currentIndex = 0;
 
-    async function fetchVideos() {
+    // Funzione per caricare la lista dei video dallo Script
+    async function loadPlaylist() {
         try {
-            // Utilizziamo un proxy per leggere la cartella pubblica di Drive
-            const response = await fetch(`https://api.allorigins.win/get?url=${encodeURIComponent('https://drive.google.com/embeddedfolderview?id=' + FOLDER_ID)}`);
+            const response = await fetch(SCRIPT_URL);
             const data = await response.json();
-            const html = data.contents;
             
-            // Cerchiamo gli ID dei file video mp4/mov nella pagina
-            const links = html.match(/id=([a-zA-Z0-9_-]{25,})/g);
-            
-            if (links) {
-                // Puliamo i duplicati e aggiorniamo la lista
-                videoList = [...new Set(links.map(l => l.replace('id=', '')))];
-                console.log("Video trovati:", videoList.length);
-                if (videoList.length > 0 && videoPlayer.src === "") {
+            if (data && data.length > 0) {
+                videoList = data;
+                // Se è la prima volta che carica o il player è vuoto, avvia il primo video
+                if (!videoPlayer.src) {
                     playVideo(0);
                 }
-            } else {
-                console.error("Nessun video trovato. Verifica che la cartella sia 'Pubblica - Chiunque abbia il link'.");
             }
-        } catch (error) {
-            console.error("Errore di connessione:", error);
+        } catch (e) {
+            console.error("Errore nel recupero della playlist:", e);
         }
     }
 
+    // Funzione per riprodurre un video specifico
     function playVideo(index) {
+        if (videoList.length === 0) return;
+        
+        // Se arriviamo alla fine della lista, ricomincia da capo
         if (index >= videoList.length) index = 0;
         currentIndex = index;
         
-        // Link diretto per lo streaming da Google Drive
-        const videoSrc = `https://drive.google.com/uc?export=download&id=${videoList[currentIndex]}`;
+        // Link diretto per il download/streaming da Drive
+        const videoId = videoList[currentIndex];
+        videoPlayer.src = `https://drive.google.com/uc?export=download&id=${videoId}`;
         
-        videoPlayer.src = videoSrc;
+        // Forza il caricamento e l'avvio
         videoPlayer.load();
-        
-        videoPlayer.play().catch(e => {
-            // Alcuni browser richiedono un'interazione, ma col "muted" l'autoplay di solito va
-            console.log("In attesa di riproduzione...");
-            setTimeout(() => videoPlayer.play(), 2000);
+        videoPlayer.play().catch(error => {
+            console.log("Autoplay bloccato o errore: ", error);
         });
     }
 
-    // Passa al video successivo quando finisce quello attuale
+    // Quando un video finisce, passa automaticamente al prossimo
     videoPlayer.onended = () => {
         playVideo(currentIndex + 1);
     };
 
-    // Avvio iniziale
-    fetchVideos();
+    // --- AVVIO E AUTOMAZIONE ---
 
-    // Controlla nuovi video ogni 30 minuti senza ricaricare la pagina
-    setInterval(fetchVideos, 1800000);
+    // Carica la playlist all'apertura
+    loadPlaylist();
+
+    // Ogni 5 minuti controlla se il cameriere ha aggiunto o rimosso video
+    // (Non interrompe il video corrente, aggiorna solo la lista per il prossimo ciclo)
+    setInterval(loadPlaylist, 300000);
+
+    // Gestione errori: se il video si blocca per problemi di rete, riprova dopo 5 secondi
+    videoPlayer.onerror = () => {
+        console.log("Errore nel video corrente, salto al prossimo...");
+        setTimeout(() => playVideo(currentIndex + 1), 5000);
+    };
+
 </script>
 </body>
 </html>
